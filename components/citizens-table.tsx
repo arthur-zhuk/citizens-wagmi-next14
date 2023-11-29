@@ -1,6 +1,6 @@
-'use client'
+"use client"
 
-import { Abi, parseAbiItem } from "viem";
+import { Abi, parseAbiItem } from "viem"
 import {
   Table,
   TableBody,
@@ -10,74 +10,82 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Suspense, useEffect, useState } from "react";
-import { useContractReads, usePublicClient } from "wagmi";
-import { citizenContractConfig } from "@/lib/contracts";
+import { Suspense, useState } from "react"
+import { useContractReads, usePublicClient, useQuery } from "wagmi"
+import { citizenContractConfig } from "@/lib/contracts"
 
 type Citizen = {
-  id: number,
-  age: number,
-  city: string,
-  name: string,
-  note: string,
+  id: number
+  age: number
+  city: string
+  name: string
+  note: string
 }
 
 type CitMulticall = {
-  functionName: string,
-  args: BigInt[],
-  address: `0x${string}`,
+  functionName: string
+  args: BigInt[]
+  address: `0x${string}`
   abi: Abi
 }
 
-const eventInterface = "event Citizen(uint indexed id, uint indexed age, string indexed city, string name)";
+const eventInterface =
+  "event Citizen(uint indexed id, uint indexed age, string indexed city, string name)"
 
 export function CitizensTable() {
   const [citizens, setCitizens] = useState<Citizen[]>([])
-  const [citizensMulticallArg, setCitizensMulticallArg] = useState<CitMulticall[]>([])
+  const [citizensMulticallArg, setCitizensMulticallArg] = useState<
+    CitMulticall[]
+  >([])
   const publicClient = usePublicClient()
 
-  useEffect(() => {
-    async function getCitizens() {
-      const logs = await publicClient.getLogs({
-        address: "0xa011799d9467d2b33768fb1a3512f1b468b87e96",
-        event: parseAbiItem(eventInterface),
-        fromBlock: 2273494n,
-        toBlock: "latest",
-      }) ?? []
+  const { data, isSuccess: isCitizensSuccess } = useQuery(
+    ["citizens"],
+    async () => {
+      const logs =
+        (await publicClient.getLogs({
+          address: "0xa011799d9467d2b33768fb1a3512f1b468b87e96",
+          event: parseAbiItem(eventInterface),
+          fromBlock: 2273494n,
+          toBlock: "latest",
+        })) ?? []
 
       const citizens: Citizen[] = logs.map((citizen: any) => {
-        const { args: { id, age, city, name } } = citizen
+        const {
+          args: { id, age, city, name },
+        } = citizen
         return {
           id: Number(id),
           age: Number(age),
           city,
           name,
-          note: 'temp note'
+          note: "temp note",
         }
       })
 
       const citizensMulticallArg = citizens.map((citizen) => ({
         ...citizenContractConfig,
-        functionName: 'getNoteByCitizenId',
-        args: [BigInt(citizen.id)]
+        functionName: "getNoteByCitizenId",
+        args: [BigInt(citizen.id)],
       }))
 
       setCitizensMulticallArg(citizensMulticallArg)
-      setCitizens(citizens)
-    }
 
-    getCitizens()
-  }, [])
+      return citizens
+    }
+  )
 
   useContractReads({
     contracts: citizensMulticallArg,
-    onSuccess: (data) => {
-      setCitizens(citizens.map((citizen, i) => ({
-        ...citizen,
-        note: data?.[i]?.result as unknown as string,
-      })))
+    onSuccess: (contractReads) => {
+      setCitizens(
+        data?.map((citizen, i) => ({
+          ...citizen,
+          note: contractReads?.[i]?.result as unknown as string,
+        })) ?? []
+      )
     },
-    enabled: citizens.length > 0
+    enabled: isCitizensSuccess,
   })
 
   return (

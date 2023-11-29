@@ -1,4 +1,4 @@
-import { CreateCitizen } from '@/components/create-citizen'
+import { CreateCitizen } from "@/components/create-citizen"
 
 export default function Page() {
   return (
